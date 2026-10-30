@@ -2,6 +2,8 @@
 
 A lightweight exposure dashboard for Claudia, the AI popstar from [claudia.gallery](https://claudia.gallery). **This edition includes independently verified research and a daily discovery queue.**
 
+**In progress · fan-made · unofficial.** Not affiliated with Claudia, anabology, Anthropic, claudia.gallery, or any associated token or studio. Not financial advice.
+
 ## Deploy to GitHub + Vercel
 
 1. Push this repository to GitHub (or open it in GitHub Desktop and publish).
@@ -17,6 +19,8 @@ No keys are required for Google News, Hacker News, Bluesky, or GDELT. Add these 
 
 | Secret | Free signup |
 | --- | --- |
+| `NEWSDATA_API_KEY` | [newsdata.io](https://newsdata.io) free tier — copy from your dashboard (Vercel will not export the real value from Mainstream Meter) |
+| `APIFY_TOKEN` | [apify.com](https://apify.com) free tier — copy from your Apify console Settings → Integrations |
 | `YOUTUBE_API_KEY` | Google Cloud Console → enable **YouTube Data API v3** → create an API key |
 | `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) → create an app |
 | `PODCASTINDEX_KEY` + `PODCASTINDEX_SECRET` | [api.podcastindex.org](https://api.podcastindex.org) → request a free key |

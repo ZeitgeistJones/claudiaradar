@@ -396,6 +396,119 @@ def podcast_index() -> list[dict]:
     return found
 
 
+def newsdata() -> list[dict]:
+    """Reuse Mainstream Meter's NewsData.io key for press hits."""
+    key = env('NEWSDATA_API_KEY')
+    if not key:
+        raise RuntimeError('skipped: no NEWSDATA_API_KEY')
+    found: list[dict] = []
+    seen: set[str] = set()
+    queries = [
+        'claudia.gallery',
+        'claudia_popstar',
+        'Claudia AI popstar',
+        'Claudia slopcore',
+        'Claudia anabology',
+    ]
+    for q in queries:
+        payload = None
+        last_err: Exception | None = None
+        for endpoint in ('latest', 'news'):
+            url = f'https://newsdata.io/api/1/{endpoint}?' + urlencode({
+                'apikey': key,
+                'q': q,
+                'language': 'en',
+            })
+            try:
+                payload = fetch_json(url)
+                break
+            except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as e:
+                last_err = e
+                continue
+        if payload is None:
+            raise RuntimeError(f'NewsData unreachable: {last_err}')
+        if not isinstance(payload, dict):
+            continue
+        status = str(payload.get('status') or '')
+        results = payload.get('results') or []
+        if status and status.lower() not in ('success', 'ok'):
+            raise RuntimeError(f'NewsData: {payload.get("message") or results or status}')
+        if isinstance(results, dict):
+            raise RuntimeError(f'NewsData: {results}')
+        for item in results:
+            title = (item.get('title') or '').strip()
+            link = (item.get('link') or item.get('url') or '').strip()
+            desc = item.get('description') or item.get('content') or ''
+            outlet = (item.get('source_id') or item.get('source_name') or 'NewsData').strip()
+            if not link.startswith('http') or not relevant(title, desc + ' ' + q):
+                continue
+            if canonical(link) in seen:
+                continue
+            seen.add(canonical(link))
+            day = iso_day(item.get('pubDate') or item.get('publishedAt'))
+            found.append(record(title or link, link, day, outlet, 'News'))
+        time.sleep(0.4)
+    return found
+
+
+def apify_web_search() -> list[dict]:
+    """Reuse Mainstream Meter's Apify token for a light Google search sweep."""
+    token = env('APIFY_TOKEN')
+    if not token:
+        raise RuntimeError('skipped: no APIFY_TOKEN')
+    queries = [
+        'claudia.gallery',
+        '"claudia_popstar" OR "claudiathepopstar"',
+        '"AI popstar" Claudia OR Claudia slopcore',
+    ]
+    # Sync run — keep tiny to stay inside free compute.
+    body = json.dumps({
+        'queries': queries,
+        'maxPagesPerQuery': 1,
+        'resultsPerPage': 10,
+        'mobileResults': False,
+        'languageCode': 'en',
+        'countryCode': 'us',
+    }).encode('utf-8')
+    url = (
+        'https://api.apify.com/v2/acts/apify~google-search-scraper/'
+        'run-sync-get-dataset-items?' + urlencode({'token': token})
+    )
+    raw = fetch(
+        url,
+        headers={'Content-Type': 'application/json', 'Accept': 'application/json'},
+        data=body,
+    )
+    try:
+        items = json.loads(raw.decode('utf-8', errors='replace'))
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f'Apify JSON error: {e}') from e
+    if isinstance(items, dict) and items.get('error'):
+        raise RuntimeError(str(items.get('error')))
+    if not isinstance(items, list):
+        raise RuntimeError('Apify returned unexpected payload')
+
+    found: list[dict] = []
+    seen: set[str] = set()
+    for item in items:
+        # Actor returns organicResults nested per query page.
+        organics = item.get('organicResults') or []
+        if not organics and item.get('url'):
+            organics = [item]
+        for hit in organics:
+            title = (hit.get('title') or '').strip()
+            link = (hit.get('url') or hit.get('link') or '').strip()
+            desc = hit.get('description') or hit.get('desc') or ''
+            if not link.startswith('http') or not relevant(title, desc):
+                continue
+            if canonical(link) in seen:
+                continue
+            seen.add(canonical(link))
+            day = iso_day(None)
+            found.append(record(title or link, link, day, 'Google (Apify)', 'Other'))
+    return found
+
+
 def merge(data: dict, new: list[dict], now: str) -> dict:
     seen = {canonical(x['url']) for x in data.get('verified', []) if x.get('url')}
     candidates: list[dict] = []
@@ -416,6 +529,8 @@ SOURCES = [
     ('Hacker News', hacker_news),
     ('Bluesky', bluesky),
     ('GDELT', gdelt),
+    ('NewsData', newsdata),
+    ('Apify Google', apify_web_search),
     ('YouTube', youtube),
     ('Reddit', reddit),
     ('Podcast Index', podcast_index),

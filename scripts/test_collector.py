@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest import mock
 
-from collect_mentions import merge, relevant, youtube, reddit, podcast_index
+from collect_mentions import merge, relevant, youtube, reddit, podcast_index, newsdata, apify_web_search
 
 
 class CollectorTests(unittest.TestCase):
@@ -42,6 +42,10 @@ class CollectorTests(unittest.TestCase):
                 reddit()
             with self.assertRaisesRegex(RuntimeError, 'skipped: no PODCASTINDEX_KEY'):
                 podcast_index()
+            with self.assertRaisesRegex(RuntimeError, 'skipped: no NEWSDATA_API_KEY'):
+                newsdata()
+            with self.assertRaisesRegex(RuntimeError, 'skipped: no APIFY_TOKEN'):
+                apify_web_search()
 
 
 if __name__ == '__main__':
